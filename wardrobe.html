@@ -1,0 +1,274 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Garde-robe</title>
+<style>
+  :root { --ink: #3b1d12; --paper: #fff7ef; --accent: #d97757; --soft: #8a5f4c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink); user-select: none;
+    font: 600 13px "Cascadia Mono", Consolas, monospace; }
+  body { box-shadow: inset 0 0 0 3px var(--ink); }
+  .px { box-shadow: 0 -3px var(--ink), 0 3px var(--ink), -3px 0 var(--ink), 3px 0 var(--ink); }
+  .px2 { box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink); }
+
+  #bar { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 16px;
+    background: var(--accent); color: #fff; font-weight: 800; letter-spacing: 2px; -webkit-app-region: drag;
+    box-shadow: inset 3px 3px var(--ink), inset -3px 0 var(--ink), inset 0 -3px var(--ink); }
+  #close { -webkit-app-region: no-drag; width: 28px; height: 22px; border: 0; cursor: pointer; color: #fff; background: var(--ink); font: 800 13px "Cascadia Mono", Consolas, monospace; }
+  #close:hover { background: #e0453a; }
+
+  main { display: flex; gap: 14px; height: calc(100% - 38px); padding: 14px 14px 12px; }
+  #side { width: 224px; display: flex; flex-direction: column; gap: 12px; }
+  .box { background: #fff; padding: 10px; margin: 3px; }
+  #preview { width: 192px; height: 192px; display: block; margin: 0 auto; image-rendering: pixelated;
+    background: repeating-conic-gradient(#f4e4d4 0 25%, #fcf3ea 0 50%) 0 0 / 24px 24px; }
+  .who { text-align: center; font-size: 15px; font-weight: 800; }
+  .title { text-align: center; font-size: 11px; color: var(--soft); margin-top: 2px; }
+  .lbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--soft); margin-top: 8px; }
+  .gauge { height: 10px; margin: 4px 2px 0; background: #efe0d1; } .gauge > div { height: 100%; background: var(--accent); transition: width .4s steps(8); }
+  .gauge.love > div { background: #ff6f91; }
+  #stats { font-size: 11px; line-height: 1.6; color: #5b4636; }
+  .next { margin-top: 6px; font-size: 10px; line-height: 1.35; color: var(--soft); }
+  .ach { display: flex; justify-content: space-between; gap: 8px; margin: 5px 3px; font-size: 11px; }
+  .ach.ok { color: #2f7a45; }
+
+  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #tabs { display: flex; gap: 8px; margin: 3px 3px 12px; }
+  #tabs button { flex: 1; padding: 7px 0; border: 0; cursor: pointer; background: #fff; color: var(--ink); font: 800 12px "Cascadia Mono", Consolas, monospace; }
+  #tabs button.on { background: var(--accent); color: #fff; }
+  #grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 12px; padding: 4px 6px 8px; align-content: start; }
+  #grid::-webkit-scrollbar { width: 10px; } #grid::-webkit-scrollbar-thumb { background: var(--accent); }
+  .card { position: relative; background: #fff; padding: 6px 4px 7px; text-align: center; cursor: pointer; font-size: 10px; line-height: 1.25; }
+  .card canvas { width: 88px; height: 88px; display: block; margin: 0 auto 4px; image-rendering: pixelated; }
+  .card:hover { background: #fff1e5; }
+  .card.on { background: #ffe2cf; box-shadow: 0 -3px var(--accent), 0 3px var(--accent), -3px 0 var(--accent), 3px 0 var(--accent); }
+  .card.lock { cursor: help; background: #f3ebe3; } .card.lock canvas { filter: grayscale(1) brightness(.75); opacity: .7; }
+  .card .how { display: none; margin-top: 4px; padding: 2px 3px; font-size: 10px; font-weight: 800; color: #fff; background: var(--ink); }
+  .card.lock .how { display: block; }
+  .card.defi .how { background: #7a5cc2; }
+  .mini { display: none; height: 4px; margin: 3px 4px 0; background: #e3d6ef; } .mini > div { height: 100%; background: #7a5cc2; }
+  .card.defi .mini { display: block; }
+  /* barre d'aide : explique comment débloquer l'objet survolé */
+  #help { margin: -2px 3px 10px; padding: 0 10px; height: 46px; display: flex; flex-direction: column; justify-content: center;
+    font-size: 11px; line-height: 1.4; background: #fff; color: var(--ink); overflow: hidden; white-space: nowrap; }
+  #help > div { overflow: hidden; text-overflow: ellipsis; }
+  #help b { color: var(--accent); }
+  .card.nope { animation: nope .3s steps(4); }
+  @keyframes nope { 25% { transform: translateX(-4px) } 75% { transform: translateX(4px) } }
+
+  #me { flex: 1; overflow-y: auto; padding: 4px 8px; display: none; }
+  #me h3 { margin: 14px 0 8px; font-size: 12px; letter-spacing: 1px; }
+  #me input, #me select { font: 600 13px "Cascadia Mono", Consolas, monospace; padding: 5px 7px; border: 0; background: #fff; color: var(--ink); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 3px; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 3px; }
+  .pill { padding: 5px 10px; border: 0; cursor: pointer; background: #fff; color: var(--ink); font: 700 12px "Cascadia Mono", Consolas, monospace; }
+  .pill.on, .go { background: var(--accent); color: #fff; }
+  .go { padding: 6px 14px; border: 0; cursor: pointer; font: 800 12px "Cascadia Mono", Consolas, monospace; }
+  .hint { font-size: 11px; color: var(--soft); margin: 4px 3px; }
+</style>
+</head>
+<body>
+<div id="bar">🎒 GARDE-ROBE <button id="close" title="Fermer">✕</button></div>
+<main>
+  <div id="side">
+    <div class="box px"><canvas id="preview" width="48" height="48"></canvas></div>
+    <div class="box px">
+      <div class="who" id="who"></div>
+      <div class="title" id="title"></div>
+      <div class="lbl"><span>⭐ Niveau <b id="lvl"></b></span><span id="xp"></span></div>
+      <div class="gauge px2"><div id="xpbar"></div></div>
+      <div class="next" id="next"></div>
+      <div class="lbl"><span>❤️ Humeur</span><span id="mood"></span></div>
+      <div class="gauge love px2"><div id="lovebar"></div></div>
+    </div>
+    <div class="box px" id="stats"></div>
+  </div>
+  <div id="content">
+    <div id="tabs"></div>
+    <div id="help" class="px2"></div>
+    <div id="grid"></div>
+    <div id="me">
+      <h3>🙂 TOI</h3>
+      <div class="row"><span>Prénom</span><input id="name" class="px2" maxlength="20" placeholder="(facultatif)"></div>
+      <div class="row"><span>Anniversaire</span><select id="bdd" class="px2"></select><select id="bdm" class="px2"></select></div>
+      <div class="row"><button class="go px2" id="save">Enregistrer</button></div>
+      <div class="hint">Il te dit bonjour par ton prénom, et le jour de ton anniversaire, c'est la fête 🎂</div>
+      <h3>📏 TAILLE</h3>
+      <div class="pills" id="scale"></div>
+      <h3>🔊 SONS</h3>
+      <div class="pills" id="sound"></div>
+      <h3>🏅 DÉFIS</h3>
+      <div id="achievements"></div>
+      <h3>🏆 RECORDS</h3>
+      <div class="hint" id="records"></div>
+    </div>
+  </div>
+</main>
+<script>
+// Garde-robe : aperçu en direct (survole une carte pour l'essayer), clic pour l'enfiler. Les cartes 🔒 se débloquent avec les niveaux.
+const { ipcRenderer: ipc } = require('electron')
+const Sp = require('./sprites.js')
+const $ = id => document.getElementById(id)
+const TABS = [['skin', '🎨 Couleurs', Sp.SKINS], ['hat', '🎩 Chapeaux', Sp.HATS], ['extra', '✨ Extras', Sp.EXTRAS], ['trail', '🌠 Traînées', Sp.TRAILS], ['me', '🙂 Moi']]
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+let state = null, tab = 'skin', hover = null, cards = []
+
+// ---------- dessin ----------
+function skinOf(k, t) {
+  const K = Sp.SKINS[k] || Sp.SKINS.claude, h = t * 90 % 360
+  return K.rainbow ? { body: `hsl(${h} 70% 62%)`, bright: `hsl(${h} 85% 72%)`, dim: `hsl(${h} 35% 45%)`, eye: K.eye } : K
+}
+function trailIcon(g, trail, t, cx, fy) {
+  const at = [[cx - 18, fy - 4], [cx - 22, fy - 9], [cx - 15, fy - 12], [cx - 20, fy - 15]]
+  at.forEach(([x, y], i) => {
+    const c = ({ etoiles: '#ffd34d', coeurs: '#ff6f91', arcenciel: `hsl(${(i * 70 + t * 200) % 360} 85% 62%)`, bulles: '#a6dcff', feu: i % 2 ? '#ff8a2a' : '#ffd34d',
+      paillettes: `hsl(${(i * 90 + t * 300) % 360} 90% 70%)` })[trail]
+    if (!c) return
+    if (trail === 'coeurs') Sp.bits(g, ['1 1', '111', ' 1 '], x - 1, y, c)
+    else if (trail === 'etoiles' || trail === 'paillettes') Sp.bits(g, Sp.BITS.spark, x - 1, y - 1, c)
+    else Sp.px(g, c, x, y + Math.round(Math.sin(t * 4 + i)), 2, 2)
+  })
+}
+function draw(cv, look, t) {
+  const g = cv.getContext('2d'), cx = cv.width / 2, fy = cv.height - 4
+  g.clearRect(0, 0, cv.width, cv.height)
+  if (look.trail && look.trail !== 'aucune') trailIcon(g, look.trail, t, cx, fy)
+  const P = Object.assign(Sp.basePose(), { t, skin: skinOf(look.skin, t), hat: look.hat, extra: look.extra,
+    eyes: (t + look.seed) % 4 < .13 ? 'closed' : 'open', sy: Math.sin(t * 2.2 + look.seed) > .75 ? 1.06 : 1 })
+  Sp.drawPet(g, cx, fy, P)
+}
+const TABLE = { skin: Sp.SKINS, hat: Sp.HATS, extra: Sp.EXTRAS, trail: Sp.TRAILS }
+const labelOf = k => { const [t, v] = k.split(':'), x = TABLE[t][v]; return x?.label || x }
+const current = () => ({ skin: state.cfg.skin, hat: state.cfg.hat, extra: state.cfg.extra, trail: state.cfg.trail, seed: 0 })
+
+// ---------- onglets et cartes ----------
+function buildTabs() {
+  $('tabs').innerHTML = ''
+  for (const [k, label] of TABS) {
+    const b = document.createElement('button')
+    b.className = 'px2' + (k === tab ? ' on' : ''); b.textContent = label
+    b.onclick = () => { tab = k; buildTabs(); buildGrid() }
+    $('tabs').append(b)
+  }
+}
+// Cartes rangées : d'abord ce que tu as, puis les défis, puis les niveaux du plus proche au plus lointain.
+const lockOf = (key, val) => Sp.lockInfo(key, val, state)
+const rank = l => !l ? 0 : l.kind === 'defi' ? 1 + (1 - l.have / l.n) : 10 + l.need
+let lockSig = ''
+function buildGrid() {
+  const isMe = tab === 'me'
+  $('grid').style.display = $('help').style.display = isMe ? 'none' : ''; $('me').style.display = isMe ? 'block' : 'none'
+  cards = []; $('grid').innerHTML = ''
+  if (isMe) return fillMe()
+  const items = Object.entries(TABS.find(t => t[0] === tab)[2]).map(([val, v], i) => ({ val, name: v.label || v, i, l: lockOf(tab, val) }))
+  items.sort((a, b) => rank(a.l) - rank(b.l) || a.i - b.i)
+  for (const { val, name } of items) {
+    const card = document.createElement('div'), cv = document.createElement('canvas'), how = document.createElement('div'), mini = document.createElement('div')
+    cv.width = cv.height = 44
+    how.className = 'how'; mini.className = 'mini'; mini.innerHTML = '<div></div>'
+    card.className = 'card px2'; card.append(cv, name, how, mini)
+    card.onmouseenter = () => { hover = { [tab]: val }; help(tab, val, name) }
+    card.onmouseleave = () => { hover = null; help() }
+    card.onclick = () => {
+      if (lockOf(tab, val)) { card.classList.remove('nope'); void card.offsetWidth; card.classList.add('nope'); return }
+      ipc.send('ward-set', { key: tab, value: val })
+    }
+    cards.push({ card, cv, how, mini, key: tab, val, seed: cards.length * .7 })
+    $('grid').append(card)
+  }
+  lockSig = cards.map(c => !!lockOf(c.key, c.val)).join()
+  refreshCards(); help()
+}
+function refreshCards() {
+  for (const c of cards) {
+    const l = lockOf(c.key, c.val)
+    c.card.classList.toggle('lock', !!l); c.card.classList.toggle('defi', l?.kind === 'defi')
+    c.how.textContent = l ? l.short : ''
+    if (l?.kind === 'defi') c.mini.firstChild.style.width = Math.round(l.have / l.n * 100) + '%'
+    c.card.classList.toggle('on', state.cfg[c.key] === c.val)
+  }
+}
+// Barre d'aide : comment débloquer l'objet survolé (ou un résumé de l'onglet)
+function help(key, val, name) {
+  const lines = (a, b) => { $('help').innerHTML = `<div>${a}</div><div>${b}</div>` } // toujours 2 lignes : rien ne bouge
+  if (!key) {
+    const own = cards.filter(c => !lockOf(c.key, c.val)).length
+    return lines(`Tu as <b>${own} / ${cards.length}</b> objets ici.`, 'Survole un objet grisé pour savoir comment l’avoir.')
+  }
+  const l = lockOf(key, val)
+  if (!l) return lines(`✓ <b>${name}</b>`, state.cfg[key] === val ? 'Il le porte en ce moment.' : 'À toi ! Clique pour l’enfiler.')
+  if (l.kind === 'level') return lines(`🔒 <b>${name}</b> : <b>niveau ${l.need}</b> (encore ${Sp.xpFor(l.need) - state.xp} XP)`, 'Tâche de Claude +10 XP · cookie +5 · chatouilles +2')
+  lines(`🏅 <b>${name}</b> : <b>${l.have}/${l.n}</b> ${l.text.replace(/^\d+ /, '')}`, l.how)
+}
+
+// ---------- onglet "Moi" ----------
+function fillMe() {
+  const [m, d] = (state.cfg.birthday || '-').split('-')
+  if (document.activeElement !== $('name')) $('name').value = state.cfg.name || ''
+  $('bdd').innerHTML = '<option value="">jour</option>' + Array.from({ length: 31 }, (_, i) => `<option${+d === i + 1 ? ' selected' : ''}>${i + 1}</option>`).join('')
+  $('bdm').innerHTML = '<option value="">mois</option>' + MONTHS.map((n, i) => `<option value="${i + 1}"${+m === i + 1 ? ' selected' : ''}>${n}</option>`).join('')
+  pills('scale', [[2, 'Mini'], [3, 'Normal'], [4, 'Grand'], [5, 'Géant']], state.cfg.scale)
+  pills('sound', [['retro', '🕹️ Rétro 8-bit'], ['doux', '🎐 Doux'], ['rigolo', '🤪 Rigolo']], state.cfg.soundPack)
+  const T = state.totals
+  $('achievements').innerHTML = Object.entries(Sp.ACHIEVEMENTS).map(([k, a]) => {
+    const have = Math.min(a.n, a.stat === 'bugRecord' ? state.bugRecord : T[a.stat] || 0), done = have >= a.n
+    return `<div class="ach${done ? ' ok' : ''}"><span>${done ? '✅' : '🏅'} ${a.n} ${a.label}</span><span>${done ? labelOf(k) : `${have}/${a.n} → ${labelOf(k)}`}</span></div>`
+  }).join('')
+  $('records').innerHTML = `🐛 Record chasse aux bugs : <b>${state.bugRecord}</b><br>✓ Tâches de Claude terminées : <b>${T.done || 0}</b><br>
+    👆 Caresses : <b>${T.clicks || 0}</b> · 🤭 Chatouilles : <b>${T.pets || 0}</b> · 🍪 Cookies : <b>${T.cookies || 0}</b> · 🎾 Tirs : <b>${T.kicks || 0}</b> · 🐛 Bugs : <b>${T.bugs || 0}</b>`
+}
+function pills(id, list, cur) {
+  $(id).innerHTML = ''
+  for (const [val, label] of list) {
+    const b = document.createElement('button')
+    b.className = 'pill px2' + (String(cur) === String(val) ? ' on' : ''); b.textContent = label
+    b.onclick = () => ipc.send('ward-set', { key: id === 'sound' ? 'soundPack' : 'scale', value: val })
+    $(id).append(b)
+  }
+}
+$('save').onclick = () => {
+  const d = $('bdd').value, m = $('bdm').value
+  ipc.send('ward-me', { name: $('name').value, birthday: d && m ? `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : '' })
+}
+$('close').onclick = () => ipc.send('ward-close')
+addEventListener('keydown', e => { if (e.key === 'Escape') ipc.send('ward-close') })
+
+// ---------- état venant du pet ----------
+ipc.on('state', (_, s) => {
+  const first = !state
+  state = s
+  $('who').textContent = s.user
+  $('title').textContent = s.title
+  $('lvl').textContent = s.level
+  $('xp').textContent = `${s.xp - s.cur} / ${s.next - s.cur} XP`
+  $('xpbar').style.width = Math.min(100, (s.xp - s.cur) / (s.next - s.cur) * 100) + '%'
+  const nextLvl = Math.min(...Object.values(Sp.LOCKS).filter(l => l > s.level))
+  $('next').textContent = isFinite(nextLvl)
+    ? `Niv. ${nextLvl} : ${Object.entries(Sp.LOCKS).filter(([, l]) => l === nextLvl).map(([k]) => labelOf(k)).join(', ')}`
+    : 'Tout est débloqué par les niveaux ! 🏆'
+  $('mood').textContent = s.love >= 80 ? 'aux anges 😍' : s.love >= 50 ? 'content 🙂' : s.love >= 20 ? 'bof 😐' : 'boude 😤'
+  $('lovebar').style.width = s.love + '%'
+  const d = s.today
+  $('stats').innerHTML = `<b>Aujourd'hui</b><br>✓ ${d.done || 0} tâches finies<br>❗ ${d.needs || 0} appels<br>👆 ${d.clicks || 0} caresses · 🤭 ${d.pets || 0} chatouilles<br>🍪 ${d.cookies || 0} cookies · 🐛 ${d.bugs || 0} bugs`
+  if (first) { buildTabs(); buildGrid() }
+  else if (tab === 'me') fillMe()
+  else if (cards.map(c => !!lockOf(c.key, c.val)).join() !== lockSig) buildGrid() // un objet vient de se débloquer : on re-range
+  else refreshCards()
+})
+ipc.send('ward-ready')
+
+// ---------- animation (≈ 15 images/s) ----------
+let lastF = 0
+function frame(now) {
+  requestAnimationFrame(frame)
+  if (!state || now - lastF < 66) return
+  lastF = now
+  const t = now / 1000
+  draw($('preview'), { ...current(), ...hover }, t)
+  for (const c of cards) draw(c.cv, { ...current(), [c.key]: c.val, seed: c.seed }, t)
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

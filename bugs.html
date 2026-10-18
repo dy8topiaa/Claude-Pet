@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; overflow: hidden; background: rgba(15, 8, 25, .12); cursor: crosshair; user-select: none; }
+  canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+  #hud {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 6px 16px;
+    font: 800 18px "Cascadia Mono", Consolas, monospace; color: #3b1d12; background: #fff7ef;
+    box-shadow: 0 -3px #3b1d12, 0 3px #3b1d12, -3px 0 #3b1d12, 3px 0 #3b1d12; filter: drop-shadow(4px 4px 0 rgba(30, 10, 5, .35));
+  }
+  #hud small { font-size: 11px; opacity: .6; margin-left: 10px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<script>
+// Chasse aux bugs : 30 s, les bugs tombent de plus en plus vite, clic = écrasé. Échap pour quitter.
+const { ipcRenderer: ipc } = require('electron')
+const Sp = require('./sprites.js')
+const q = new URLSearchParams(location.search), S = 2 * q.get('S'), record = +q.get('record') || 0 // bugs 2x plus gros que le pet
+const cv = document.getElementById('c'), g = cv.getContext('2d'), hud = document.getElementById('hud')
+cv.width = Math.ceil(innerWidth / S); cv.height = Math.ceil(innerHeight / S)
+cv.style.width = cv.width * S + 'px'; cv.style.height = cv.height * S + 'px'
+
+const COLORS = ['#3a8a3a', '#d63a3a', '#2f6fd0', '#e8a02a', '#8a5cc2']
+const rnd = (a, b) => a + Math.random() * (b - a)
+let bugs = [], fx = [], score = 0, left = 30, spawnT = 0, last = performance.now(), over = false
+
+cv.addEventListener('pointerdown', e => {
+  const x = e.clientX / S, y = e.clientY / S, i = bugs.findIndex(b => Math.abs(b.x - x) < 6 && Math.abs(b.y - y) < 6)
+  if (i < 0) return
+  const b = bugs.splice(i, 1)[0]
+  score++
+  for (let k = 0; k < 12; k++) fx.push({ x: b.x, y: b.y, vx: rnd(-50, 50), vy: rnd(-60, 10), life: .5, c: k % 3 ? b.c : '#ffffff' })
+  ipc.send('bug-hit')
+})
+addEventListener('keydown', e => { if (e.key === 'Escape') end() })
+function end() { if (!over) { over = true; ipc.send('bugs-done', score) } }
+
+function frame(now) {
+  if (over) return
+  requestAnimationFrame(frame)
+  const dt = Math.min(.05, (now - last) / 1000); last = now
+  if ((left -= dt) <= 0) return end()
+  if ((spawnT -= dt) <= 0) { // de plus en plus de bugs, de plus en plus vite
+    spawnT = Math.max(.15, .7 - (30 - left) * .018)
+    bugs.push({ x: rnd(8, cv.width - 8), y: -4, vy: rnd(10, 18) + (30 - left) * 1.3, ph: rnd(0, 6), c: COLORS[Math.random() * COLORS.length | 0] })
+  }
+  g.clearRect(0, 0, cv.width, cv.height)
+  for (const b of bugs) {
+    b.y += b.vy * dt; b.x += Math.sin(now / 300 + b.ph) * 14 * dt
+    Sp.drawBug(g, Math.round(b.x), Math.round(b.y), Math.floor(now / 120) % 2, b.c)
+  }
+  bugs = bugs.filter(b => b.y < cv.height + 6)
+  for (const p of fx) { p.life -= dt; p.vy += 140 * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.life > 0) Sp.px(g, p.c, Math.round(p.x), Math.round(p.y)) }
+  fx = fx.filter(p => p.life > 0)
+  hud.innerHTML = `🐛 ${score} &nbsp; ⏱ ${Math.ceil(left)} &nbsp; 🏆 ${Math.max(record, score)}<small>Échap pour quitter</small>`
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --ink: #3b1d12; --paper: #fff7ef; --red: #e0452f; --green: #3f9b5a; }
+  html, body { margin: 0; overflow: hidden; background: transparent; user-select: none; }
+  canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; cursor: grab; }
+  #bubbles { position: absolute; width: 260px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* bulle pixel : bordure en box-shadow = coins crantés */
+  .b {
+    position: relative; background: var(--paper); color: var(--ink); padding: 8px 11px 9px 14px; cursor: pointer;
+    font: 600 13px/1.35 "Cascadia Mono", Consolas, monospace;
+    box-shadow: 0 -3px var(--ink), 0 3px var(--ink), -3px 0 var(--ink), 3px 0 var(--ink), inset 4px 0 var(--accent);
+    filter: drop-shadow(4px 4px 0 rgba(30, 10, 5, .35));
+    animation: pop .34s steps(6) both;
+  }
+  .b:hover { --paper: #fffdf9; }
+  .needs { --accent: var(--red); }
+  .done { --accent: var(--green); }
+  .error { --accent: #7a5cc2; }
+  /* commande dangereuse : fond rayé rouge, avertissement en gras */
+  .b.danger { --accent: #d4231a; --paper: #fff0e8; background: repeating-linear-gradient(-45deg, #fff0e8 0 8px, #ffe0d3 8px 16px); }
+  .danger .d { white-space: normal; word-break: break-all; color: #7a2a1a; }
+  .dz { margin-top: 5px; font-weight: 800; font-size: 12px; color: #c0261b; }
+  .h { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .proj { color: #fff; padding: 1px 6px; font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .proj:hover { filter: brightness(1.25); text-decoration: underline; }
+  .tag { color: #fff; padding: 1px 5px; font-size: 10px; font-weight: 800; letter-spacing: 1px; background: var(--accent); white-space: nowrap; flex-shrink: 0; }
+  .needs .tag { animation: blink 1s steps(1) infinite; }
+  .m { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .done .m { font-size: 16px; font-weight: 800; color: #2f7a45; }
+  .bar { height: 3px; margin-top: 7px; background: var(--accent); transform-origin: left; animation: shrink linear forwards; }
+  .sum { margin-top: 4px; font-size: 11px; font-style: italic; font-weight: 500; color: #5b4636; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .game .sum { display: none; }
+  .d { margin-top: 2px; font-size: 11px; color: #8a5f4c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btns { display: flex; gap: 8px; margin-top: 9px; }
+  .btns button {
+    flex: 1; padding: 4px 0; border: 0; cursor: pointer; color: #fff; background: var(--c); font: 800 11px "Cascadia Mono", Consolas, monospace;
+    box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink), inset 0 -2px rgba(0, 0, 0, .25);
+  }
+  .btns button:hover { filter: brightness(1.12); }
+  .btns button:active { transform: translateY(1px); box-shadow: 0 -2px var(--ink), 0 2px var(--ink), -2px 0 var(--ink), 2px 0 var(--ink); }
+  /* chrono + outil en cours, au-dessus de sa tête quand il travaille */
+  #chip {
+    position: absolute; display: none; padding: 0 4px; pointer-events: none; white-space: nowrap; opacity: .75;
+    color: #fff; background: rgba(30, 15, 10, .45); font: 600 9px/14px "Cascadia Mono", Consolas, monospace;
+  }
+  .tail {
+    display: none; position: absolute; top: calc(100% + 3px); left: calc(var(--tx) - 1.5px); width: 3px; height: 3px; background: var(--paper);
+    box-shadow: -3px -3px var(--paper), 0 -3px var(--paper), 3px -3px var(--paper), -6px 0 var(--ink), -3px 0 var(--paper),
+      3px 0 var(--paper), 6px 0 var(--ink), -3px 3px var(--ink), 0 3px var(--paper), 3px 3px var(--ink), 0 6px var(--ink);
+  }
+  #bubbles .b:last-child .tail, #say .tail { display: block; }
+  /* petite bulle de "pensée" quand il est bavard */
+  #say { position: absolute; display: none; width: max-content; max-width: 220px; padding: 6px 10px; font-size: 12px; --accent: transparent; }
+
+  /* "+1 👆 42" qui s'envole quand on le caresse */
+  .count { position: absolute; pointer-events: none; white-space: nowrap; transform: translateX(-50%); color: #fff; font: 800 13px "Cascadia Mono", Consolas, monospace;
+    text-shadow: 2px 0 #c2245f, -2px 0 #c2245f, 0 2px #c2245f, 0 -2px #c2245f, 2px 2px #c2245f; animation: rise .9s steps(9) forwards; }
+  .count b { color: #ffe066; }
+  @keyframes rise { 0% { opacity: 0; margin-top: 8px } 15% { opacity: 1 } 100% { opacity: 0; margin-top: -34px } }
+
+  /* mode jeu : mini-bulle d'une ligne, pas de boutons ni d'animation */
+  .game #bubbles { width: 200px; gap: 8px; }
+  .game .b { padding: 3px 7px 4px 10px; font-size: 11px; animation: none; }
+  .game .h { margin-bottom: 1px; }
+  .game .m { -webkit-line-clamp: 1; }
+  .game .d, .game .btns, .game .bar, .game #chip, .game #say { display: none !important; }
+  .game .tag { animation: none; }
+
+  @keyframes pop { 0% { transform: translateY(14px) scale(.5); opacity: 0 } 60% { transform: translateY(-3px) scale(1.05); opacity: 1 } 100% { transform: none } }
+  @keyframes blink { 50% { background: var(--ink) } }
+  @keyframes shrink { to { transform: scaleX(0) } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bubbles"></div>
+<div id="say" class="b"><span></span><div class="tail"></div></div>
+<div id="chip"></div>
+<script>
+const { ipcRenderer: ipc } = require('electron')
+const Sp = require('./sprites.js')
+const q = new URLSearchParams(location.search)
+const S = +q.get('S'), W = +q.get('W'), H = +q.get('H'), PAD = +q.get('PAD')
+const cv = document.getElementById('c'), g = cv.getContext('2d'), box = document.getElementById('bubbles'), sayEl = document.getElementById('say'), chip = document.getElementById('chip')
+const TOOLS = [
+  [/^(Read|Glob|Grep|LS)$/, '🔍', 'lit'], [/^(Edit|Write|MultiEdit|NotebookEdit)$/, '✏️', 'écrit'],
+  [/^(Bash|PowerShell|BashOutput|KillShell|Monitor)$/, '💻', 'commande'], [/^Web/, '🌐', 'web'], [/^(Task|Agent)$/, '🤖', 'agent'],
+  [/^(TodoWrite|update_plan)/, '📝', 'planifie'], [/^mcp__/, '🔌', 'outil'], [/./, '⚙️', 'outil'],
+]
+cv.width = Math.ceil(W / S); cv.height = Math.ceil(H / S)
+cv.style.width = cv.width * S + 'px'; cv.style.height = cv.height * S + 'px'
+box.style.bottom = sayEl.style.bottom = PAD + 36 * S + 4 + 'px' // au-dessus des chapeaux
+chip.style.bottom = PAD + 22 * S + 'px'
+
+let st = null, prevAir = false, squash = 0, dustT = 0, trailT = 0, gumPhase = 0, lastT = performance.now(), lastRects = ''
+let look = { skin: 'claude', hat: 'aucun', extra: 'aucun', trail: 'aucune' }
+const MOVING = ['walk', 'run', 'skate', 'butterfly']
+// fêtes : citrouille autour d'Halloween, bonnet + neige en décembre (si aucun chapeau choisi)
+const today = new Date(), mo = today.getMonth() + 1, day = today.getDate()
+const SEASON_HAT = (mo === 10 && day >= 24) || (mo === 11 && day === 1) ? 'citrouille' : mo === 12 && day <= 26 ? 'noel' : 'aucun'
+const SNOW = mo === 12
+const fx = []
+const spawn = p => fx.push({ vx: 0, vy: 0, g: 0, life: 1, age: 0, ...p })
+const rnd = (a, b) => a + Math.random() * (b - a)
+const CONF = ['#ffd37a', '#d97757', '#7fd1b9', '#9bb7ff', '#ff8fab', '#ffffff']
+
+ipc.on('tick', (_, s) => {
+  if (prevAir && !s.air) { squash = .14; for (const d of [-1, 1]) spawn({ k: 'dust', x: s.x + d * 8 * S, y: s.y, vx: d * 90, vy: -30, life: .35 }) }
+  prevAir = s.air; st = s
+  document.body.classList.toggle('game', !!s.game)
+})
+ipc.on('look', (_, l) => { look = l })
+ipc.on('fx', (_, f) => {
+  if (f.type === 'poof') for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; spawn({ k: 'dust', x: f.x, y: f.y - 12 * S, vx: Math.cos(a) * 170, vy: Math.sin(a) * 120, life: .6 }) }
+  if (f.type === 'hearts') for (let i = 0; i < 4; i++) spawn({ k: 'heart', x: f.x + (i - 1.5) * 7 * S, y: f.y, vx: (i - 1.5) * 25, vy: rnd(-130, -70), life: 1.2 })
+  if (f.type === 'levelup') for (let i = 0; i < 36; i++) { // feu d'artifice
+    const a = i / 36 * Math.PI * 2, v = rnd(120, 260)
+    spawn({ k: i % 3 ? 'conf' : 'spark', x: f.x, y: f.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, g: 260, life: 1.4, c: CONF[i % CONF.length] })
+  }
+  if (f.type === 'count' && st) {
+    const el = document.createElement('div')
+    el.className = 'count'; el.innerHTML = `+1 👆 <b>${Number(f.n) | 0}</b>`
+    el.style.left = f.x - st.wx + rnd(-10, 10) + 'px'; el.style.top = f.y - st.wy - 34 * S + 'px'
+    document.body.append(el); setTimeout(() => el.remove(), 950)
+  }
+  if (f.type === 'crumbs') for (let i = 0; i < 14; i++) spawn({ k: 'conf', x: f.x, y: f.y, vx: rnd(-160, 160), vy: rnd(-260, -80), g: 700, life: .9, c: i % 2 ? '#d49a52' : '#4a2a12' })
+})
+
+// ---------- sons 8-bit synthétisés ----------
+const SFX = {
+  needs: ['square', [880, 1318.5, 880, 1318.5]], done: ['square', [1046.5, 1318.5, 1568, 2093]], error: ['triangle', [523, 440, 349, 262]],
+  kick: ['triangle', [180, 360]], boing: ['sine', [260, 520, 390]], eat: ['square', [150, 110, 150, 110]],
+  dance: ['square', [523, 659, 784, 1047, 784, 1047]], purr: ['triangle', [90, 110, 90, 110, 90]], pop: ['triangle', [660, 990]],
+}
+// packs : rétro (tel quel), doux (sinus, une octave plus bas, plus long), rigolo (chaque note glisse vers le haut)
+const PACKS = { retro: { mul: 1 }, doux: { wave: 'sine', mul: .5, len: 1.6, vol: 1.4 }, rigolo: { wave: 'triangle', mul: 1, slide: 1.8, vol: 1.6 } }
+let ac
+ipc.on('sfx', (_, k) => {
+  ac ??= new AudioContext()
+  const [preset, notes] = SFX[k], P = PACKS[look.soundPack] || PACKS.retro, type = P.wave || preset, len = .09 * (P.len || 1)
+  let t0 = ac.currentTime
+  for (const f of notes) {
+    const o = ac.createOscillator(), v = ac.createGain()
+    o.type = type; o.frequency.setValueAtTime(f * P.mul, t0)
+    if (P.slide) o.frequency.exponentialRampToValueAtTime(f * P.mul * P.slide, t0 + len)
+    v.gain.setValueAtTime((type === 'square' ? .035 : .07) * (P.vol || 1), t0); v.gain.exponentialRampToValueAtTime(.001, t0 + len)
+    o.connect(v).connect(ac.destination); o.start(t0); o.stop(t0 + len + .01); t0 += len * .95
+  }
+})
+
+// ---------- bulles ----------
+const nodes = new Map()
+const hue = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
+function make(a) {
+  const n = document.createElement('div')
+  n.className = 'b ' + a.kind + (a.danger ? ' danger' : '')
+  n.innerHTML = '<div class="h"><span class="proj"></span><span class="tag"></span></div><div class="m"></div><div class="tail"></div>'
+  const proj = n.querySelector('.proj')
+  proj.textContent = a.project + ' ↗'; proj.title = 'Aller à la session'
+  proj.style.background = `hsl(${hue(a.project)} 55% 40%)`
+  proj.onclick = ev => { ev.stopPropagation(); ipc.send('focus', a.id) }
+  n.querySelector('.tag').textContent = a.danger ? '⚠ DANGER' : { needs: '! BESOIN DE TOI', done: 'TERMINÉ', error: '⛔ BLOQUÉ' }[a.kind]
+  n.querySelector('.m').textContent = a.text
+  const add = (cls, text) => { const el = document.createElement('div'); el.className = cls; if (text) el.textContent = text; n.append(el); return el }
+  if (a.detail) add('d', a.detail)
+  if (a.summary) add('sum', '« ' + a.summary + ' »')
+  if (a.danger) add('dz', '⚠ ' + a.danger)
+  if (a.ask) { // Oui / Toujours / Non : répond directement à Claude
+    const btns = add('btns')
+    for (const [d, label, c] of [['allow', a.danger ? '⚠ Oui quand même' : '✓ Oui', a.danger ? '#a8501f' : '#3f9b5a'], ...(a.canAlways ? [['always', '✓ Toujours', '#2f6fd0']] : []), ['deny', '✕ Non', '#e0452f']]) {
+      const b = document.createElement('button')
+      b.textContent = label; b.style.setProperty('--c', c)
+      b.onclick = ev => { ev.stopPropagation(); ipc.send('decide', { id: a.id, decision: d }) }
+      btns.append(b)
+    }
+  }
+  if (a.left > 0) add('bar').style.animationDuration = a.left + 'ms'
+  n.onclick = () => ipc.send('dismiss', a.id)
+  return n
+}
+ipc.on('alerts', (_, list) => {
+  list = list.slice(-4)
+  const keep = new Set()
+  list.forEach((a, i) => {
+    const key = a.kind + a.t + a.ask
+    let n = nodes.get(a.id)
+    if (!n || n.dataset.key !== key) { n?.remove(); n = make(a); n.dataset.key = key; nodes.set(a.id, n) }
+    if (box.children[i] !== n) box.insertBefore(n, box.children[i] || null)
+    keep.add(a.id)
+  })
+  for (const [id, n] of nodes) if (!keep.has(id)) { n.remove(); nodes.delete(id) }
+})
+
+let sayTimer
+ipc.on('say', (_, text) => {
+  sayEl.firstChild.textContent = text
+  sayEl.style.display = 'block'; sayEl.style.animation = 'none'; sayEl.offsetWidth; sayEl.style.animation = '' // relance le "pop"
+  clearTimeout(sayTimer); sayTimer = setTimeout(() => { sayEl.style.display = 'none' }, Math.max(3800, 1500 + text.length * 60)) // le temps de lire
+})
+sayEl.onclick = () => { sayEl.style.display = 'none' }
+
+// ---------- souris ----------
+let pressed = false
+cv.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !st || Math.abs(e.clientX - (st.x - st.wx)) > 16 * S || e.clientY < st.y - st.wy - 30 * S) return
+  pressed = true; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; ipc.send('down')
+})
+cv.addEventListener('pointerup', () => { if (pressed) { pressed = false; cv.style.cursor = 'grab'; ipc.send('up') } })
+cv.addEventListener('dblclick', () => ipc.send('dbl'))
+document.addEventListener('contextmenu', e => { e.preventDefault(); ipc.send('menu') })
+
+// ---------- animation ----------
+function pose(t, s) {
+  const P = Sp.basePose(), blink = t % 4.1 < .13, f = n => Math.floor(t * n)
+  const K = Sp.SKINS[look.skin] || Sp.SKINS.claude, h = t * 90 % 360
+  P.skin = K.rainbow ? { body: `hsl(${h} 70% 62%)`, bright: `hsl(${h} 85% 72%)`, dim: `hsl(${h} 35% 45%)`, eye: K.eye } : K
+  P.hat = s.night ? 'bonnet' : look.hat !== 'aucun' ? look.hat : s.bday ? 'fete' : SEASON_HAT; P.face = s.face
+  Object.assign(P, { t, extra: look.extra || 'aucun', moving: MOVING.includes(s.act), air: s.air })
+  P.eyes = blink ? 'closed' : 'open'
+  // il regarde ta souris quand elle passe près de lui, sinon il jette des coups d'œil
+  const near = Math.abs(s.cx - s.x) < 500, glance = near ? Math.sign(s.cx - s.x) : Math.sin(t * .6) > .6 ? 1 : Math.sin(t * .6) < -.6 ? -1 : 0
+  switch (s.act) {
+    case 'walk': { // aux anges, il sautille en marchant
+      const ph = f(8) % 2; P.feet = ph ? [-1, 0] : [0, -1]; P.look = s.face
+      if (s.love >= 80) Object.assign(P, { bob: -Math.round(Math.abs(Math.sin(t * 8)) * 2), eyes: blink ? 'closed' : 'happy' })
+      break
+    }
+    case 'run': { const ph = f(14) % 2; Object.assign(P, { feet: ph ? [-2, 0] : [0, -2], arms: 'flap', armPh: ph, look: s.face }); break }
+    case 'stand': P.look = glance; P.sy = Math.sin(t * 2.2) > .7 ? 1.06 : 1; break
+    case 'sit': P.sit = true; P.look = glance; P.sy = Math.sin(t * 1.8) > .7 ? 1.06 : 1; break
+    case 'sleep': Object.assign(P, { sit: true, eyes: 'closed', tint: 'dim', sy: Math.sin(t * 1.2) > 0 ? 1.06 : 1 }); break
+    case 'type': Object.assign(P, { sit: true, laptop: true, eyes: blink ? 'closed' : 'down', arms: 'type', armPh: f(10) % 2,
+      think: f(2.5) % 4, tint: f(6) % 2 ? 'bright' : 'body' }); break
+    case 'dangle': Object.assign(P, { arms: 'up', eyes: 'wide', feet: f(10) % 2 ? [1, 0] : [0, 1] }); break
+    case 'error': Object.assign(P, { sit: true, eyes: 'sad', tint: 'dim' }); break // tout triste, assis
+    case 'needs': // même animation que "fini", avec un "!" au-dessus de la tête
+    case 'done': Object.assign(P, { arms: f(2) % 2 ? 'wave' : 'down', armPh: f(4) % 2, eyes: 'happy', blush: true, bang: s.act === 'needs' }); break
+    case 'dance': Object.assign(P, { arms: 'wave', armPh: f(5) % 2, eyes: 'happy', bob: -Math.round(Math.abs(Math.sin(t * 5)) * 3),
+      dx: Math.round(Math.sin(t * 5) * 2), feet: f(5) % 2 ? [-1, 0] : [0, -1], tint: f(5) % 2 ? 'bright' : 'body' }); break
+    case 'dizzy': Object.assign(P, { eyes: 'x', dx: Math.round(Math.sin(t * 10) * 1.5), arms: 'flap', armPh: f(8) % 2 }); break
+    case 'eat': Object.assign(P, { eyes: f(6) % 2 ? 'happy' : 'closed', bob: -(f(6) % 2), blush: true }); break
+    case 'happy': Object.assign(P, { arms: 'up', eyes: 'happy', blush: true, tint: 'bright' }); break
+    // activités
+    case 'skate': Object.assign(P, { bob: -3, arms: 'flap', armPh: f(3) % 2, eyes: 'happy', look: s.face }); break
+    case 'guitar': Object.assign(P, { sit: true, eyes: f(2) % 2 ? 'happy' : 'closed', look: -1 }); break
+    case 'gum': Object.assign(P, { eyes: 'down', blush: t % 3 > 2.4 }); break
+    case 'read': Object.assign(P, { sit: true, eyes: blink ? 'closed' : 'down', arms: 'type' }); break
+    case 'fish': Object.assign(P, { sit: true, look: 1, ...(s.at > s.dur - 2.2 ? { eyes: 'happy', blush: true } : {}) }); break
+    case 'yoyo': Object.assign(P, { eyes: 'down', look: 1 }); break
+    case 'butterfly': { const ph = f(8) % 2; Object.assign(P, { feet: ph ? [-1, 0] : [0, -1], eyes: 'wide', look: s.face }); break }
+    // petits jeux
+    case 'shake': Object.assign(P, { arms: 'flap', armPh: f(10) % 2, eyes: 'wide', dx: f(14) % 2 ? 1 : -1 }); break
+    case 'sulk': Object.assign(P, { sit: true, eyes: 'sad', look: -s.face, tint: 'dim' }); break
+  }
+  if (s.air && s.act !== 'dangle') {
+    if (Math.abs(s.vx) > 150) Object.assign(P, { arms: 'up', eyes: 'wide' }) // lancé !
+    if (s.vy < -150) { P.sy = 1.12; P.sx = .9 } else if (s.vy > 150) { P.sy = 1.06; P.sx = .95 }
+  }
+  if (s.act === 'needs' && s.danger) Object.assign(P, { eyes: 'wide', arms: 'up', dx: f(12) % 2 ? 1 : -1 }) // il tremble
+  if (s.night && P.eyes === 'open') P.eyes = 'down' // yeux mi-clos, il a sommeil
+  if (squash > 0) { P.sy *= .82; P.sx *= 1.15 }
+  return P
+}
+
+function frame(now) {
+  requestAnimationFrame(frame)
+  if (!st || (st.game && now - lastT < 66)) return // en jeu : ~15 images/s, pour ne rien prendre aux FPS
+  const dt = Math.min(.07, (now - lastT) / 1000); lastT = now
+  const s = st, t = now / 1000, L = v => Math.round(v / S)
+  squash -= dt
+  g.clearRect(0, 0, cv.width, cv.height)
+  const lx = L(s.x - s.wx), fy = L(s.y - s.wy), gy = L(s.gy - s.wy)
+
+  // ombre au sol
+  const w = Math.max(6, Math.round(30 - Math.max(0, gy - fy) / 2))
+  g.fillStyle = 'rgba(40,12,4,.28)'; g.fillRect(lx - (w >> 1), gy, w, 1); g.fillRect(lx - (w >> 1) + 2, gy + 1, Math.max(0, w - 4), 1)
+  const P = pose(t, s)
+  if (s.act === 'camp') Sp.drawTent(g, lx, fy, t, P.skin)
+  else {
+    Sp.drawPet(g, lx, fy, P)
+    if (Sp.ACTIVITIES[s.act]) Sp.drawActivity(g, { ...P, activity: s.act, at: s.at, dur: s.dur }, Sp.geom(lx, fy, P), P.skin)
+  }
+
+  // particules (coordonnées écran)
+  const chance = r => Math.random() < dt * r
+  if (s.act === 'run' && !s.air && (dustT += dt) > .05) { dustT = 0; spawn({ k: 'dust', x: s.x - s.face * 13 * S, y: s.y - S, vx: -s.face * 40, vy: -40, life: .45 }) }
+  if (s.act === 'done' && chance(3)) spawn({ k: 'conf', x: s.x + rnd(-12, 12) * S, y: s.y - 24 * S, vx: rnd(-60, 60), vy: rnd(-160, -80), g: 500, life: 1.2, c: CONF[Math.random() * CONF.length | 0] })
+  if (s.act === 'dance' && chance(3)) spawn({ k: 'note', x: s.x + rnd(-14, 14) * S, y: s.y - 26 * S, vx: rnd(-20, 20), vy: -45, life: 1.6, c: CONF[Math.random() * 5 | 0] })
+  if (s.act === 'dizzy' && chance(7)) { const a = rnd(0, 6.28); spawn({ k: 'spark', x: s.x + Math.cos(a) * 12 * S, y: s.y - 24 * S + Math.sin(a) * 3 * S, vx: -Math.sin(a) * 60, vy: Math.cos(a) * 15, life: .5 }) }
+  if (s.act === 'eat' && chance(6)) spawn({ k: 'conf', x: s.x + rnd(-4, 4) * S, y: s.y - 10 * S, vx: rnd(-90, 90), vy: rnd(-160, -60), g: 700, life: .7, c: '#d49a52' })
+  if (s.act === 'error' && chance(.8)) spawn({ k: 'conf', x: s.x + (Math.random() < .5 ? -7 : 5) * S, y: s.y - 9 * S, vy: 20, g: 300, life: .7, c: '#6fb6ff' }) // petite larme
+  if (s.act === 'camp' && chance(.5)) spawn({ k: 'z', x: s.x + 3 * S, y: s.y - 14 * S, vx: 14, vy: -22, life: 2.6 })
+  if (s.act === 'camp' && chance(4)) spawn({ k: 'dust', x: s.x + rnd(26, 32) * S, y: s.y - 8 * S, vx: rnd(-10, 10), vy: -40, life: 1 }) // fumée du feu
+  if (s.act === 'sleep' && chance(.7)) spawn({ k: 'z', x: s.x + 8 * S, y: s.y - 24 * S, vx: 18, vy: -28, life: 2.4 })
+  if (s.act === 'guitar' && chance(2.5)) spawn({ k: 'note', x: s.x + rnd(-6, 10) * S, y: s.y - 18 * S, vx: rnd(-15, 25), vy: -40, life: 1.8, c: CONF[Math.random() * 5 | 0] })
+  if (s.act === 'gum' && t % 3 < gumPhase) for (let i = 0; i < 10; i++) spawn({ k: 'conf', x: s.x, y: s.y - 12 * S, vx: rnd(-120, 120), vy: rnd(-140, 40), g: 300, life: .5, c: i % 2 ? '#ff8fc8' : '#ffd1e8' }) // pop !
+  gumPhase = t % 3
+  if (s.act === 'skate' && (dustT += dt) > .07) { dustT = 0; spawn({ k: 'dust', x: s.x - s.face * 14 * S, y: s.y, vx: -s.face * 30, vy: -20, life: .35 }) }
+  // traînée derrière lui quand il bouge
+  if (look.trail && look.trail !== 'aucune' && MOVING.includes(s.act) && (trailT += dt) > .06) {
+    trailT = 0
+    const x = s.x - s.face * 12 * S + rnd(-2, 2) * S, y = s.y - rnd(2, 8) * S
+    spawn({
+      etoiles: { k: 'spark', x, y, vy: rnd(-20, 5), life: .7, c: Math.random() < .5 ? '#ffd34d' : '#fff4c2' },
+      coeurs: { k: 'heartS', x, y, vy: -25, life: .9 },
+      arcenciel: { k: 'conf', x, y: s.y - 8 * S, life: .6, c: `hsl(${t * 300 % 360} 85% 62%)` },
+      bulles: { k: 'bub', x, y, vy: -35, vx: rnd(-10, 10), life: 1.2 },
+      feu: { k: 'conf', x, y: s.y - 2 * S, vy: -30, g: -120, life: .5, c: Math.random() < .5 ? '#ff8a2a' : '#ffd34d' },
+      paillettes: { k: 'spark', x, y, vx: rnd(-30, 30), vy: rnd(-60, -10), life: .8, c: `hsl(${rnd(0, 360)} 90% 72%)` },
+    }[look.trail])
+  }
+  if (s.bday && !s.game && chance(1.5)) spawn({ k: 'conf', x: s.x + rnd(-16, 16) * S, y: s.y - 30 * S, vx: rnd(-40, 40), vy: rnd(-120, -40), g: 300, life: 1.4, c: CONF[Math.random() * CONF.length | 0] }) // anniversaire !
+  if (s.love >= 90 && !s.game && chance(.6)) spawn({ k: 'spark', x: s.x + rnd(-14, 14) * S, y: s.y - rnd(6, 24) * S, vy: -15, life: .7, c: '#fff4c2' }) // il rayonne
+  // neige en décembre
+  if (SNOW && chance(5)) spawn({ k: 'snow', x: s.wx + rnd(0, W), y: s.wy, vx: rnd(-8, 8), vy: rnd(25, 45), life: 8 })
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const p = fx[i]
+    if ((p.age += dt) > p.life) { fx.splice(i, 1); continue }
+    p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt
+    const x = L(p.x - s.wx), y = L(p.y - s.wy), k = p.age / p.life
+    if (p.k === 'dust') { g.fillStyle = `rgba(245,230,215,${1 - k})`; const z = k < .5 ? 2 : 1; g.fillRect(x, y - z, z, z) }
+    else if (p.k === 'conf') Sp.px(g, p.c, x, y, f2(p.age), f2(p.age + .1))
+    else if (p.k === 'heart' && (k < .7 || Math.floor(p.age * 12) % 2)) Sp.bits(g, Sp.BITS.heart, x - 2, y, '#ff6f91', Sp.PAL.out)
+    else if (p.k === 'note' && k < .85) Sp.bits(g, Sp.BITS.note, x, y, p.c, Sp.PAL.out)
+    else if (p.k === 'spark') Sp.bits(g, Sp.BITS.spark, x - 1, y - 1, p.c || '#ffd34d')
+    else if (p.k === 'heartS' && k < .85) Sp.bits(g, ['1 1', '111', ' 1 '], x - 1, y, '#ff6f91')
+    else if (p.k === 'bub') { Sp.px(g, 'rgba(160,215,255,.8)', x, y, 2, 2); Sp.px(g, '#ffffff', x, y) }
+    else if (p.k === 'snow') Sp.px(g, '#ffffff', x, y)
+    else if (p.k === 'z' && k < .9) Sp.bits(g, Sp.BITS.z, x, y, '#dfeaff', '#2a3550')
+  }
+
+  // bulles au-dessus du pet, queue pointée sur lui (la bulle bavarde s'efface devant les alertes)
+  const px = s.x - s.wx, left = Math.max(4, Math.min(W - 264, px - 130))
+  box.style.left = left + 'px'; box.style.setProperty('--tx', px - left + 'px')
+  if (box.children.length) sayEl.style.display = 'none'
+  if (sayEl.style.display === 'block') {
+    const sw = sayEl.offsetWidth, sl = Math.max(4, Math.min(W - sw - 4, px - sw / 2))
+    sayEl.style.left = sl + 'px'; sayEl.style.setProperty('--tx', px - sl + 'px')
+  }
+  // chrono + outil en cours
+  const showChip = s.act === 'type' && s.work
+  chip.style.display = showChip ? 'block' : 'none'
+  if (showChip) {
+    const [, icon] = s.work.tool ? TOOLS.find(([re]) => re.test(s.work.tool)) : [, '💭']
+    const m = Math.floor(s.work.secs / 60), sec = String(s.work.secs % 60).padStart(2, '0')
+    chip.textContent = `${icon} ${m}:${sec}${s.work.n > 1 ? ` ×${s.work.n}` : ''}`
+    chip.style.left = Math.max(2, Math.min(W - chip.offsetWidth - 2, px - chip.offsetWidth / 2)) + 'px'
+  }
+
+  const els = [...box.children, ...(sayEl.style.display === 'block' ? [sayEl] : [])]
+  const rects = els.map(n => { const r = n.getBoundingClientRect(); return { x: r.x - 4, y: r.y - 4, w: r.width + 8, h: r.height + 18 } })
+  const key = JSON.stringify(rects)
+  if (key !== lastRects) { lastRects = key; ipc.send('rects', rects) }
+}
+const f2 = a => Math.floor(a * 10) % 2 + 1 // confetti qui "tourne"
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

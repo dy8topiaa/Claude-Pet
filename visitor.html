@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html, body { margin: 0; overflow: hidden; background: transparent; } canvas { image-rendering: pixelated; }</style>
+</head>
+<body>
+<canvas id="c" width="40" height="36"></canvas>
+<script>
+// Visiteur (chat, fantôme, robot…) : petite fenêtre à part qui le suit pendant qu'il passe dire bonjour.
+const { ipcRenderer: ipc } = require('electron')
+const Sp = require('./sprites.js')
+const S = +new URLSearchParams(location.search).get('S'), cv = document.getElementById('c'), g = cv.getContext('2d')
+cv.style.width = 40 * S + 'px'; cv.style.height = 36 * S + 'px'
+let v = null
+ipc.on('visitor', (_, d) => { v = d })
+function frame(now) {
+  requestAnimationFrame(frame)
+  if (!v) return
+  const t = now / 1000
+  g.clearRect(0, 0, 40, 36); g.globalAlpha = Math.max(0, Math.min(1, v.alpha))
+  if (v.kind === 'cousin') {
+    const ph = Math.floor(t * 8) % 2
+    Sp.drawPet(g, 20, 34, { ...Sp.basePose(), t, skin: Sp.SKINS[v.skin] || Sp.SKINS.menthe, hat: v.hat, face: v.face, look: v.face,
+      feet: v.walking ? (ph ? [-1, 0] : [0, -1]) : [0, 0], eyes: t % 3.7 < .13 ? 'closed' : 'open', arms: v.happy ? 'up' : 'down' })
+  } else Sp.drawVisitor(g, v.kind, 20, 34, t, v.face, v.walking)
+  g.globalAlpha = 1
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

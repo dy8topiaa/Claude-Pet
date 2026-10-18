@@ -1,0 +1,21 @@
+{
+  "name": "claude-pet",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Le petit bonhomme de Claude Code, un compagnon de bureau qui réagit à tes sessions",
+  "main": "main.js",
+  "updateRepo": "dy8topiaa/Claude-Pet",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test.js",
+    "hooks:install": "node hooks-setup.js install",
+    "hooks:remove": "node hooks-setup.js uninstall",
+    "remove": "node hooks-setup.js uninstall && electron . --uninstall",
+    "shortcut": "node shortcut.js",
+    "release": "node release.js",
+    "zip": "powershell -NoProfile -Command \"Compress-Archive -Force -Path main.js,pet.html,prop.html,bugs.html,wardrobe.html,visitor.html,sprites.js,hook.js,hooks-setup.js,shortcut.js,install.bat,test.js,release.js,package.json,package-lock.json,README.md -DestinationPath ..\\claude-pet.zip\""
+  },
+  "devDependencies": {
+    "electron": "^44.9.0"
+  }
+}

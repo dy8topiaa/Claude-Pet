@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html, body { margin: 0; overflow: hidden; background: transparent; } canvas { image-rendering: pixelated; }</style>
+</head>
+<body>
+<canvas id="c" width="12" height="12"></canvas>
+<script>
+// Balle / cookie : petite fenêtre séparée pour pouvoir voler partout sur l'écran.
+const { ipcRenderer: ipc } = require('electron')
+const Sp = require('./sprites.js')
+const S = +new URLSearchParams(location.search).get('S'), cv = document.getElementById('c'), g = cv.getContext('2d')
+cv.style.width = cv.style.height = 12 * S + 'px'
+ipc.on('prop', (_, p) => { g.clearRect(0, 0, 12, 12); Sp.drawProp(g, p.kind, 6, 7, p.ph) })
+</script>
+</body>
+</html>
